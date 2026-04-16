@@ -2,8 +2,6 @@
 #include <WiFiManager.h>
 #include <PubSubClient.h>
 
-#include <Arduino.h>
-
 #define LED 2
 
 void setup() {
