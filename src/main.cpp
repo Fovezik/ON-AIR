@@ -3,117 +3,251 @@
 #include <WiFiManager.h>
 #include <PubSubClient.h>
 #include <Preferences.h>
+#include <Ticker.h>
 
-const int ledPin = 2;
+class OnAirClient;
+extern OnAirClient onAirApp;
 
-char mqttServer[40] = "192.168.0.2";
-const char* mqttTopic = "studio/onair";
-bool shouldSaveConfig = false;
+/**
+ * @brief Global callback wrapper to trigger the save configuration flag.
+ */
+void globalSaveConfigCallback();
 
-Preferences preferences;
-WiFiClient espClient;
-PubSubClient mqttClient(espClient);
+/**
+ * @brief Global callback wrapper to process incoming MQTT messages.
+ * @param topic The MQTT topic the message was published to.
+ * @param payload The raw message data.
+ * @param length The length of the payload.
+ */
+void globalMqttCallback(char* topic, byte* payload, unsigned int length);
 
-void saveConfigCallback() {
-  shouldSaveConfig = true;
-}
+/**
+ * @brief Global callback wrapper triggered when WiFiManager enters AP mode.
+ * @param myWiFiManager Pointer to the WiFiManager instance.
+ */
+void globalConfigModeCallback(WiFiManager *myWiFiManager);
 
-void processMqttMessage(String message) {
-  if (message == "ON") {
-    digitalWrite(ledPin, HIGH);
-  } else if (message == "OFF") {
-    digitalWrite(ledPin, LOW);
-  }
-}
+/**
+ * @brief Global callback wrapper for Ticker to blink the status LED.
+ */
+void globalTickCallback();
 
-void mqttCallback(char* topic, byte* payload, unsigned int length) {
-  String message;
-  for (unsigned int i = 0; i < length; i++) {
-    message += (char)payload[i];
-  }
-  
-  Serial.print("Message arrived [");
-  Serial.print(topic);
-  Serial.print("]: ");
-  Serial.println(message);
-
-  processMqttMessage(message);
-}
-
-void handleMqttConnection() {
-  while (!mqttClient.connected()) {
-    Serial.print("Attempting MQTT connection to ");
-    Serial.print(mqttServer);
-    Serial.print("... ");
+/**
+ * @class OnAirClient
+ * @brief Manages WiFi, MQTT connection, relay state, and network status LED.
+ */
+class OnAirClient {
+private:
+    const int statusLedPin = 2;
+    const int relayPin = 4;
     
-    String clientId = "OnAir-ESP32-";
-    clientId += String(random(0xffff), HEX);
+    const int maxMqttRetries = 2;
+    int currentMqttRetries = 0;
+    char mqttServer[40] = "";
+    const char* mqttTopic = "studio/onair";
+    bool shouldSaveConfig = false;
 
-    if (mqttClient.connect(clientId.c_str())) {
-      Serial.println("connected");
-      mqttClient.subscribe(mqttTopic);
-    } else {
-      Serial.print("failed, rc=");
-      Serial.print(mqttClient.state());
-      Serial.println(" try again in 5 seconds");
-      delay(5000);
+    Preferences preferences;
+    WiFiClient espClient;
+    PubSubClient mqttClient;
+    Ticker statusTicker;
+
+    /**
+     * @brief Resets WiFiManager settings, clears NVS preferences, and restarts the ESP32.
+     */
+    void resetDeviceAndCredentials() {
+        WiFiManager wifiManager;
+        wifiManager.resetSettings();
+        
+        preferences.begin("onAirApp", false);
+        preferences.clear();
+        preferences.end();
+        
+        ESP.restart();
     }
-  }
+
+public:
+    OnAirClient() : mqttClient(espClient) {}
+
+    /**
+     * @brief Sets the configuration save flag to true.
+     */
+    void markConfigForSaving() {
+        shouldSaveConfig = true;
+    }
+
+    /**
+     * @brief Toggles the current state of the status LED.
+     */
+    void toggleStatusLed() {
+        int state = digitalRead(statusLedPin);
+        digitalWrite(statusLedPin, !state);
+    }
+
+    /**
+     * @brief Sets the status LED to blinking mode (Connecting).
+     */
+    void setStatusConnecting() {
+        statusTicker.attach(0.3, globalTickCallback);
+    }
+
+    /**
+     * @brief Sets the status LED to solid ON mode (Setup Portal).
+     */
+    void setStatusSetupMode() {
+        statusTicker.detach();
+        digitalWrite(statusLedPin, HIGH);
+    }
+
+    /**
+     * @brief Sets the status LED to solid OFF mode (Connected).
+     */
+    void setStatusConnected() {
+        statusTicker.detach();
+        digitalWrite(statusLedPin, LOW);
+    }
+
+    /**
+     * @brief Loads the saved MQTT broker IP from NVS memory.
+     */
+    void loadConfig() {
+        preferences.begin("onAirApp", false);
+        String savedMqtt = preferences.getString("mqttIp", "");
+        if (savedMqtt.length() > 0) {
+            strlcpy(mqttServer, savedMqtt.c_str(), sizeof(mqttServer));
+        }
+        preferences.end();
+    }
+
+    /**
+     * @brief Saves the current MQTT broker IP to NVS memory if the flag is set.
+     */
+    void saveConfigIfNeeded() {
+        if (shouldSaveConfig) {
+            preferences.begin("onAirApp", false);
+            preferences.putString("mqttIp", mqttServer);
+            preferences.end();
+            shouldSaveConfig = false;
+        }
+    }
+
+    /**
+     * @brief Controls the external relay based on the received MQTT message.
+     * @param message The payload received from the MQTT broker.
+     */
+    void processMqttMessage(String message) {
+        if (message == "ON") {
+            digitalWrite(relayPin, HIGH);
+        } else if (message == "OFF") {
+            digitalWrite(relayPin, LOW);
+        }
+    }
+
+    /**
+     * @brief Attempts to connect to the MQTT broker, retrying up to a maximum limit before wiping credentials.
+     */
+    void handleMqttConnection() {
+        setStatusConnecting();
+        
+        while (!mqttClient.connected()) {
+            if (currentMqttRetries >= maxMqttRetries) {
+                resetDeviceAndCredentials();
+            }
+
+            String clientId = "OnAir-ESP32-";
+            clientId += String(random(0xffff), HEX);
+
+            if (mqttClient.connect(clientId.c_str())) {
+                currentMqttRetries = 0;
+                mqttClient.subscribe(mqttTopic);
+                setStatusConnected();
+            } else {
+                currentMqttRetries++;
+                delay(5000);
+            }
+        }
+    }
+
+    /**
+     * @brief Initializes WiFi connection or launches the configuration portal.
+     */
+    void setupWiFiAndPortal() {
+        setStatusConnecting();
+        
+        WiFiManager wifiManager;
+        wifiManager.setSaveConfigCallback(globalSaveConfigCallback);
+        wifiManager.setAPCallback(globalConfigModeCallback);
+
+        WiFiManagerParameter customMqttServer("server", "MQTT Broker IP", mqttServer, 40);
+        wifiManager.addParameter(&customMqttServer);
+
+        if (!wifiManager.autoConnect("OnAir_Setup")) {
+            delay(3000);
+            ESP.restart();
+        }
+
+        strlcpy(mqttServer, customMqttServer.getValue(), sizeof(mqttServer));
+    }
+
+    /**
+     * @brief Configures the MQTT client settings.
+     */
+    void setupMqtt() {
+        mqttClient.setServer(mqttServer, 1883);
+        mqttClient.setCallback(globalMqttCallback);
+    }
+
+    /**
+     * @brief Initializes hardware pins.
+     */
+    void initializeHardware() {
+        pinMode(statusLedPin, OUTPUT);
+        pinMode(relayPin, OUTPUT);
+        digitalWrite(statusLedPin, LOW);
+        digitalWrite(relayPin, LOW);
+    }
+
+    /**
+     * @brief Maintains the MQTT connection and processes incoming messages.
+     */
+    void runLoop() {
+        if (!mqttClient.connected()) {
+            handleMqttConnection();
+        }
+        mqttClient.loop();
+    }
+};
+
+OnAirClient onAirApp;
+
+void globalSaveConfigCallback() {
+    onAirApp.markConfigForSaving();
 }
 
-void loadConfig() {
-  preferences.begin("onairApp", false);
-  String savedMqtt = preferences.getString("mqttIp", "");
-  if (savedMqtt.length() > 0) {
-    strlcpy(mqttServer, savedMqtt.c_str(), sizeof(mqttServer));
-  }
+void globalMqttCallback(char* topic, byte* payload, unsigned int length) {
+    String message;
+    for (unsigned int i = 0; i < length; i++) {
+        message += (char)payload[i];
+    }
+    onAirApp.processMqttMessage(message);
 }
 
-void saveConfigIfNeeded() {
-  if (shouldSaveConfig) {
-    preferences.putString("mqttIp", mqttServer);
-    Serial.println("Saved new MQTT broker IP to NVS");
-  }
+void globalConfigModeCallback(WiFiManager *myWiFiManager) {
+    onAirApp.setStatusSetupMode();
 }
 
-void setupWiFiAndPortal() {
-  WiFiManager wifiManager;
-  wifiManager.setSaveConfigCallback(saveConfigCallback);
-
-  WiFiManagerParameter customMqttServer("server", "MQTT Broker IP", mqttServer, 40);
-  wifiManager.addParameter(&customMqttServer);
-
-  Serial.println("Connecting to WiFi or starting portal...");
-  
-  if (!wifiManager.autoConnect("OnAir_Setup")) {
-    Serial.println("Failed to connect and hit timeout");
-    delay(3000);
-    ESP.restart();
-  }
-
-  Serial.println("Connected to WiFi");
-  strlcpy(mqttServer, customMqttServer.getValue(), sizeof(mqttServer));
-}
-
-void setupMqtt() {
-  mqttClient.setServer(mqttServer, 1883);
-  mqttClient.setCallback(mqttCallback);
+void globalTickCallback() {
+    onAirApp.toggleStatusLed();
 }
 
 void setup() {
-  Serial.begin(115200);
-  pinMode(ledPin, OUTPUT);
-  digitalWrite(ledPin, LOW);
-
-  loadConfig();
-  setupWiFiAndPortal();
-  saveConfigIfNeeded();
-  setupMqtt();
+    onAirApp.initializeHardware();
+    onAirApp.loadConfig();
+    onAirApp.setupWiFiAndPortal();
+    onAirApp.saveConfigIfNeeded();
+    onAirApp.setupMqtt();
 }
 
 void loop() {
-  if (!mqttClient.connected()) {
-    handleMqttConnection();
-  }
-  mqttClient.loop();
+    onAirApp.runLoop();
 }
