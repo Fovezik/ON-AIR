@@ -19,14 +19,20 @@ class OnAirSystem:
             try:
                 with open(self.configFile, 'r') as fileObject:
                     return json.load(fileObject)
-            except ValueError:
+            except (ValueError, OSError):
                 return None
         return None
 
     def saveConfig(self, configData):
         """Saves configuration to JSON file."""
-        with open(self.configFile, 'w') as fileObject:
-            json.dump(configData, fileObject, indent=4)
+        scriptDir = os.path.dirname(self.configFile)
+        if not os.path.exists(scriptDir):
+            os.makedirs(scriptDir, exist_ok=True)
+        try:
+            with open(self.configFile, 'w') as fileObject:
+                json.dump(configData, fileObject, indent=4)
+        except OSError as e:
+            RPR_ShowConsoleMsg(f"[OnAir] Error saving config: {e}\n")
 
     def promptUserForConfig(self, defaultIp="192.168.0.3", defaultPort="1883", defaultTopic="studio/onair"):
         """Displays a REAPER dialog to gather MQTT settings."""
@@ -51,10 +57,20 @@ class OnAirSystem:
         try:
             self.topic = configData["topic"]
             self.mqttClient = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-            self.mqttClient.connect(configData["brokerIp"], int(configData["port"]), 2)
+            
+            def on_connect(client, userdata, flags, rc, properties=None):
+                # When connected or reconnected to broker, republish current state
+                # with retain=True so broker and clients always have fresh state.
+                currentState = RPR_GetToggleCommandState(1013)
+                payload = "ON" if currentState == 1 else "OFF"
+                client.publish(self.topic, payload, qos=1, retain=True)
+
+            self.mqttClient.on_connect = on_connect
+            self.mqttClient.connect(configData["brokerIp"], int(configData["port"]), 60)
             self.mqttClient.loop_start()
             return True
-        except Exception:
+        except Exception as e:
+            RPR_ShowConsoleMsg(f"[OnAir] Broker connection error: {e}\n")
             return False
 
     def checkRecordState(self):
@@ -63,10 +79,9 @@ class OnAirSystem:
         
         if currentState != self.lastRecordState:
             self.lastRecordState = currentState
-            if currentState == 1:
-                self.mqttClient.publish(self.topic, "ON")
-            else:
-                self.mqttClient.publish(self.topic, "OFF")
+            payload = "ON" if currentState == 1 else "OFF"
+            if self.mqttClient:
+                self.mqttClient.publish(self.topic, payload, qos=1, retain=True)
                 
         RPR_defer("onAirApp.checkRecordState()")
 
