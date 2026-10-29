@@ -1,0 +1,396 @@
+% !TeX program = lualatex
+\documentclass[11pt,a4paper]{article}
+
+\usepackage{fontspec}
+\usepackage[polish]{babel}
+\usepackage[a4paper,top=2.5cm,bottom=2.5cm,left=2.5cm,right=2.5cm]{geometry}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{xltabular}
+\usepackage{enumitem}
+\usepackage{tcolorbox}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{listings}
+\usepackage{float}
+\usepackage{hyperref}
+
+% Kolorystyka
+\definecolor{primaryBlue}{RGB}{20, 65, 110}
+\definecolor{codeKw}{RGB}{0, 80, 160}
+\definecolor{codeComment}{RGB}{35, 125, 45}
+\definecolor{codeString}{RGB}{180, 60, 20}
+\definecolor{boxBg}{RGB}{246, 248, 252}
+\definecolor{boxFrame}{RGB}{195, 205, 220}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=primaryBlue,
+    urlcolor=primaryBlue,
+    citecolor=primaryBlue
+}
+
+\providecommand{\uv}[1]{,,#1''}
+
+% Konfiguracja nagłówków i stopek
+\setlength{\headheight}{14pt}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{gray} System ON-AIR -- Dokumentacja Techniczna i Kod Źródłowy}
+\fancyhead[R]{\small\color{gray} REAPER DAW \& ESP32}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+% Formatowanie tytułów sekcji
+\titleformat{\section}
+  {\normalfont\Large\bfseries\color{primaryBlue}}{\thesection}{1em}{}
+\titleformat{\subsection}
+  {\normalfont\large\bfseries\color{primaryBlue!85!black}}{\thesubsection}{1em}{}
+\titleformat{\subsubsection}
+  {\normalfont\normalsize\bfseries\color{primaryBlue!70!black}}{\thesubsubsection}{1em}{}
+
+% Definicja języka Lua dla pakietu listings
+\lstdefinelanguage{Lua}{
+  morekeywords={and,break,do,else,elseif,end,false,for,function,if,in,local,nil,not,or,repeat,return,then,true,until,while,reaper},
+  morecomment=[l]{--},
+  morecomment=[s]{--[[}{]]},
+  morestring=[b]",
+  morestring=[b]',
+  sensitive=true
+}
+
+% Konfiguracja listings do prezentacji kodu (z obsługą polskich znaków UTF-8)
+\lstset{
+    basicstyle=\ttfamily\scriptsize,
+    breaklines=true,
+    breakatwhitespace=false,
+    numbers=left,
+    numberstyle=\tiny\color{gray!80},
+    stepnumber=1,
+    numbersep=6pt,
+    backgroundcolor=\color{boxBg},
+    frame=single,
+    rulecolor=\color{boxFrame},
+    keywordstyle=\color{codeKw}\bfseries,
+    commentstyle=\color{codeComment}\itshape,
+    stringstyle=\color{codeString},
+    showstringspaces=false,
+    tabsize=2,
+    columns=fullflexible,
+    keepspaces=true,
+    captionpos=t,
+    extendedchars=true,
+    literate={ą}{{\k{a}}}1 {ć}{{\'c}}1 {ę}{{\k{e}}}1 {ł}{{\l{}}}1 {ń}{{\'n}}1 {ó}{{\'o}}1 {ś}{{\'s}}1 {ź}{{\'z}}1 {ż}{{\.z}}1
+             {Ą}{{\k{A}}}1 {Ć}{{\'C}}1 {Ę}{{\k{E}}}1 {Ł}{{\L{}}}1 {Ń}{{\'N}}1 {Ó}{{\'O}}1 {Ś}{{\'S}}1 {Ź}{{\'Z}}1 {Ż}{{\.Z}}1
+}
+
+\begin{document}
+
+% ==========================================
+% STRONA TYTUŁOWA
+% ==========================================
+\begin{titlepage}
+    \centering
+    \vspace*{1.5cm}
+    
+    {\Huge\bfseries\color{primaryBlue} SYSTEM SYGNALIZACJI ON-AIR}\\[0.4cm]
+    {\LARGE\bfseries DOKUMENTACJA TECHNICZNA I ARCHITEKTURA OPROGRAMOWANIA}\\[0.3cm]
+    {\large\color{gray} Sterownik kasetonu studyjnego sprzężony ze środowiskiem REAPER DAW}\\[1.5cm]
+    
+    \begin{tcolorbox}[colback=primaryBlue!5,colframe=primaryBlue,arc=4mm,width=0.9\textwidth,halign=center]
+        \vspace{0.4cm}
+        {\Large\bfseries INSTRUKCJA PROGRAMISTY (IT DEVELOPER MANUAL)}\\[0.2cm]
+        {\normalsize Szczegółowy opis implementacji firmware ESP32, protokołu MQTT, skryptu ReaScript oraz pełne listingi kodu źródłowego}
+        \vspace{0.4cm}
+    \end{tcolorbox}
+    
+    \vfill
+    
+    \begin{tabularx}{0.88\textwidth}{l X}
+        \textbf{Autor opracowania:} & Zespół Inżynierii Oprogramowania Systemów Wbudowanych \\
+        \textbf{Wersja dokumentacji:} & 2.0 (Wydanie produkcyjne po refaktoryzacji) \\
+        \textbf{Mikrokontroler:} & Espressif ESP32-WROOM-32 (Dual-Core 240~MHz, 4~MB Flash) \\
+        \textbf{Środowisko kompilacji:} & PlatformIO Core v6.x / Framework Arduino ESP32 \\
+        \textbf{Języki oprogramowania:} & C++11 (ESP32), Python 3 (ReaScript), Lua 5.3 (Autostart) \\
+        \textbf{Protokół sieciowy:} & MQTT v3.1.1 (QoS 1, retain flag) over TCP/IP \\
+        \textbf{Data publikacji:} & Październik 2026 \\
+    \end{tabularx}
+    
+    \vspace{1cm}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ==========================================
+% 1. ARCHITEKTURA SYSTEMU I PROTOKÓŁ
+% ==========================================
+\section{Architektura systemu i protokół komunikacji}
+
+System sygnalizacji ON-AIR został zaprojektowany w~trójwarstwowej architekturze rozproszonej, w~której stacja robocza audio (DAW), pośrednik komunikatów (Broker MQTT) oraz fizyczny kontroler wykonawczy (ESP32) współpracują bezprzewodowo w~czasie rzeczywistym.
+
+\subsection{Topologia i przepływ danych w systemie}
+Struktura przepływu sygnałów pomiędzy komponentami prezentuje się następująco:
+
+\begin{center}
+\begin{tcolorbox}[colback=boxBg,colframe=boxFrame,arc=3mm,width=0.95\textwidth]
+\centering\small
+\textbf{[ REAPER DAW (Stacja Robocza) ]}\\[1mm]
+$\Downarrow$ \textit{ReaScript API: odpytywanie stanu polecenia Record (Command ID: 1013)}\\[1mm]
+\textbf{[ Skrypt integracyjny: \texttt{onAirSystem.py} (Python 3 / Paho-MQTT) ]}\\[1mm]
+$\Downarrow$ \textit{Publikacja stanu: Topic \texttt{studio/onair}, Payload: \texttt{"ON"} / \texttt{"OFF"}, QoS=1, Retain=True}\\[1mm]
+\textbf{[ Broker MQTT (np. Mosquitto / EMQX / Home Assistant) ]}\\[1mm]
+$\Downarrow$ \textit{Dystrybucja wiadomości przez Wi-Fi 802.11 b/g/n (Port 1883)}\\[1mm]
+\textbf{[ Sterownik ESP32 (\texttt{PubSubClient3} + \texttt{OnAirController}) ]}\\[1mm]
+$\Downarrow$ \textit{Aktualizacja wyjść cyfrowych GPIO (Przekaźnik SSR/EM: GPIO 4, Dioda aktywności: GPIO 18)}\\[1mm]
+\textbf{[ Kaseton Ostrzegawczy ON-AIR (Lampa 230V AC / LED 12V DC) ]}
+\end{tcolorbox}
+\end{center}
+
+\subsection{Specyfikacja protokołu MQTT}
+Komunikacja pomiędzy oprogramowaniem nadrzędnym a~węzłem wykonawczym odbywa się zgodnie ze standardem MQTT v3.1.1:
+\begin{itemize}[leftmargin=1.5em]
+    \item \textbf{Domyślny temat (Topic):} \texttt{studio/onair} (z~możliwością rekonfiguracji z~poziomu portalu WWW oraz skryptu REAPERa).
+    \item \textbf{Format ładunku (Payload):} Prosty ciąg tekstowy ASCII:
+    \begin{itemize}
+        \item \texttt{"ON"} lub \texttt{"1"} -- Rozpoczęto rejestrację audio (załączenie lampy).
+        \item \texttt{"OFF"} lub \texttt{"0"} -- Zatrzymano rejestrację audio (wyłączenie lampy).
+    \end{itemize}
+    \item \textbf{Flaga zachowania stanu (\texttt{Retain Flag = True}):} Publikacja komunikatów ze strony REAPERa odbywa się z~włączoną flagą \texttt{retain=True}. Oznacza to, że broker MQTT zapamiętuje ostatni znany stan w~danym temacie. Gdy sterownik ESP32 uruchamia się po zaniku zasilania lub powraca z~trybu manualnego, natychmiast po subskrypcji tematu otrzymuje aktualny stan nagrywania bez konieczności oczekiwania na kolejne kliknięcie przycisku \textit{Record} w~REAPERze.
+    \item \textbf{Poziom jakości usług (\texttt{QoS = 1}):} Gwarantuje dostarczenie wiadomości przynajmniej raz (\textit{At least once}) wraz z~potwierdzeniem odbioru (\texttt{PUBACK}) ze strony brokera.
+    \item \textbf{Identyfikacja klienta (Client ID):} Każdy egzemplarz urządzenia generuje unikalny, stały identyfikator klienta oparty na 48-bitowym sprzętowym adresie MAC z~pamięci OTP eFuse ESP32 (format: \texttt{OnAir-XXXXXXXXXXXX}). Zapobiega to kolizjom połączeń na brokerze i~nie tworzy osieroconych sesji w~przypadku ponawiania połączenia.
+\end{itemize}
+
+\newpage
+
+% ==========================================
+% 2. WARSTWA SPRZĘTOWA
+% ==========================================
+\section{Warstwa sprzętowa sterownika ESP32}
+
+\subsection{Przypisanie linii wejścia/wyjścia (GPIO)}
+Projekt wykorzystuje mikrokontroler ESP32-WROOM-32. Wszystkie piny zostały dobrane ze szczególnym uwzględnieniem specyfiki układu ESP32 (linie strappingowe, taktowanie szyn, domyślne stany rozruchowe).
+
+\begin{xltabular}{\textwidth}{l l l X}
+\caption{Konfiguracja wyprowadzeń mikrokontrolera ESP32} \label{tab:pinout} \\
+\toprule
+\textbf{Stała w kodzie} & \textbf{GPIO} & \textbf{Kierunek} & \textbf{Funkcja / Uzasadnienie techniczne} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Stała w kodzie} & \textbf{GPIO} & \textbf{Kierunek} & \textbf{Funkcja / Uzasadnienie techniczne} \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+\texttt{PIN\_RELAY} & GPIO 4 & OUTPUT & Sterowanie wejściem modułu przekaźnika (SSR / elektromagnetycznego) lampy ON-AIR. Pin bezpieczny rozruchowo, brak stanów nieustalonych (PWM) przy starcie. \\
+\addlinespace
+\texttt{PIN\_STATUS\_LED} & GPIO 21 & OUTPUT & Dioda LED sygnalizacji stanu sieci Wi-Fi i~brokera MQTT. Zmieniono z~GPIO 5, aby wyeliminować konflikt z~linią strappingową magistrali SDIO/VSPI. \\
+\addlinespace
+\texttt{PIN\_ACTIVE\_LED} & GPIO 18 & OUTPUT & Dioda LED sygnalizacji aktywnego stanu ON-AIR (świeci synchronicznie z~załączeniem przekaźnika). \\
+\addlinespace
+\texttt{PIN\_PASSTHROUGH\_SWITCH} & GPIO 19 & INPUT\_PULLUP & Wejście przełącznika kołyskowego trybu ręcznego (zielony klawisz). Zwarcie do masy (\texttt{LOW}) oznacza wymuszenie stanu ON i~wyłączenie radia Wi-Fi. \\
+\addlinespace
+\texttt{PIN\_FACTORY\_RESET} & GPIO 22 & INPUT\_PULLUP & Wejście przycisku zerowania konfiguracji. Zwarcie do masy przez 5~sekund uruchamia procedurę kasowania pamięci NVS. \\
+\end{xltabular}
+
+\subsection{Uzasadnienie przeniesienia diody statusowej z GPIO 5 na GPIO 21}
+W~pierwotnej wersji projektu dioda statusowa była podłączona do pinu \textbf{GPIO 5}. Na układach ESP32 pin ten pełni krytyczną funkcję strappingową:
+\begin{itemize}[leftmargin=1.5em]
+    \item Podczas rozruchu (\textit{Reset/Power-On}) układ próbkujący odczytuje poziom logiczny na GPIO 5 w~celu ustalenia timingu magistrali SPI oraz trybu pracy kontrolera pamięci Flash (\textit{SDIO Slave timing}).
+    \item Standardowe podłączenie diody LED z~rezystorem ograniczającym do masy (GND) wymusza na pinie stan logiczny niski (\texttt{LOW}) w~chwili restartu (domyślnie pin ten wymaga stanu \texttt{HIGH} przez wewnętrzny rezystor podciągający).
+    \item W~zależności od partii produkcyjnej i~wersji bootloadera może to skutkować niestabilnością fazy startowej lub błędami komunikacji z~pamięcią Flash.
+    \item Przeniesienie wskaźnika na \textbf{GPIO 21} (czysty pin ogólnego przeznaczenia bez powiązań strappingowych) całkowicie rozwiązuje ten problem i~gwarantuje 100\% stabilność każdego restartu.
+\end{itemize}
+
+\subsection{Polaryzacja wyjścia przekaźnikowego}
+W~kodzie zaimplementowano konfigurowalną na etapie kompilacji logikę polaryzacji wyjścia:
+\begin{lstlisting}[language=C++]
+constexpr uint8_t RELAY_ACTIVE_LEVEL = HIGH;
+constexpr uint8_t RELAY_INACTIVE_LEVEL = (RELAY_ACTIVE_LEVEL == HIGH) ? LOW : HIGH;
+\end{lstlisting}
+Umożliwia to błyskawiczną adaptację oprogramowania zarówno do modułów wyzwalanych stanem wysokim (\textit{Active-HIGH}), jak i~stanem niskim (\textit{Active-LOW}, np. wyzwalanych przez transoptor lub przekaźniki półprzewodnikowe SSR typu Omron G3MB-202P) bez modyfikowania logiki sterującej w~głębi programu.
+
+\newpage
+
+% ==========================================
+% 3. ANALIZA FIRMWARE ESP32
+% ==========================================
+\section{Szczegółowa analiza implementacji firmware ESP32}
+
+\subsection{Architektura obiektowa: Klasa \texttt{OnAirController}}
+Cały stan urządzenia, zarządzanie pamięcią nieulotną, obsługa sieci Wi-Fi, klienta MQTT oraz filtracji wejść cyfrowych zostały zamknięte wewnątrz klasy \texttt{OnAirController}.
+
+\subsubsection{Główne pola stanu i mechanizmy zarządzania}
+\begin{itemize}[leftmargin=1.5em]
+    \item \textbf{Buforowanie parametrów:} Zmienne tablicowe \texttt{mqttServer[40]}, \texttt{mqttPort[6]} oraz \texttt{mqttTopic[64]} przechowują parametry konfiguracyjne. Są one deklarowane w~klasie przed obiektami \texttt{WiFiManagerParameter}, co gwarantuje poprawną kolejność inicjalizacji list konstrukcyjnych w~języku C++.
+    \item \textbf{Trwała pamięć NVS (\texttt{Preferences}):} Obsługa przestrzeni nazw \texttt{"onAirApp"}. Zapis i~odczyt kluczy \texttt{"mqttIp"}, \texttt{"mqttPort"} oraz \texttt{"mqttTopic"}.
+    \item \textbf{Metoda \texttt{saveCustomParams()}:} Parametry z~portalu konfiguracyjnego są pobierane i~zapisywane do NVS natychmiast po zatwierdzeniu formularza przez użytkownika (callback \texttt{setSaveParamsCallback}). Zabezpiecza to przed utratą wpisanych danych w~sytuacji, gdy połączenie z~routerem Wi-Fi nie nastąpiło natychmiast.
+\end{itemize}
+
+\subsection{Eliminacja przerwań sprzętowych ISR na korzyść bezpiecznego debouncingu}
+W~pierwotnej wersji kodu przełącznik Passthrough był obsługiwany za pomocą przerwania sprzętowego \texttt{attachInterrupt(..., CHANGE)}. Takie rozwiązanie niosło ze sobą poważne ryzyko awarii:
+\begin{enumerate}[leftmargin=1.5em]
+    \item Podczas operacji zapisu lub kasowania pamięci Flash NVS (\texttt{preferences.putString}, \texttt{preferences.clear}) oraz operacji stosu Wi-Fi kontroler ESP32 tymczasowo wyłącza pamięć podręczną instrukcji (\textit{SPI Flash Cache}).
+    \item Wystąpienie drgań styków przełącznika w~tym ułamku sekundy powodowało wywołanie kodu obsługi przerwania odwołującego się do pamięci poza sekcją \texttt{IRAM\_ATTR}, skutkując natychmiastowym błędem krytycznym:
+    \begin{center}
+        \texttt{Guru Meditation Error: Core 1 panic'ed (Cache disabled but cached memory region accessed)}
+    \end{center}
+    \item Zwykły przełącznik kołyskowy nie wymaga mikrosekundowych czasów reakcji. W~obecnej wersji zaimplementowano nieblokujący filtr programowy o~oknie czasowym 50~ms w~metodzie \texttt{checkPassthroughSwitch()}. Zapewnia to zerowe ryzyko kolizji z~operacjami NVS i~całkowitą odporność na zakłócenia mechaniczne styków.
+\end{enumerate}
+
+\subsection{Filtracja styków przycisku Factory Reset}
+Metoda \texttt{monitorFactoryReset()} została wyposażona w~analogiczny 50-milisekundowy filtr drgań styków. Wcześniejszy brak debouncingu powodował, że mikroskopijne przerwy stykowe podczas 5-sekundowego trzymania przycisku zerowały licznik czasu, sprawiając wrażenie, że przycisk \uv{zawodzi lub działa losowo}. Obecna implementacja gwarantuje precyzyjne odliczenie 3~sekund (aktywacja stroboskopu ostrzegawczego) oraz 5~sekund (wykonanie procedury \textit{wipe \& reboot}).
+
+\subsection{Integracja z WiFiManager i obsługa automatycznego restartu}
+\begin{itemize}[leftmargin=1.5em]
+    \item \textbf{Tryb nieblokujący:} Wywołanie \texttt{wifiManager.setConfigPortalBlocking(false)} pozwala na ciągłe przetwarzanie pętli głównej \texttt{runLoop()} i~obsługę przełączników sprzętowych nawet wtedy, gdy aktywny jest punkt dostępowy konfiguracji.
+    \item \textbf{Limit czasu (\texttt{Timeout = 120 s}):} Portal konfiguracyjny ma zdefiniowany limit czasu 2~minut.
+    \item \textbf{Wstrzymywanie limitu czasu (\texttt{setAPClientCheck(true)}):} Gdy jakiekolwiek urządzenie podłączy się do sieci \texttt{OnAir\_Setup}, funkcja sprawdzająca liczbę podłączonych stacji wstrzymuje odliczanie timera. Użytkownik ma nieograniczony czas na konfigurację, dopóki jest połączony z~siecią AP.
+    \item \textbf{Automatyczny restart po wygaśnięciu portalu:} W~przypadku braku aktywności przez 120~sekund callback \texttt{onConfigPortalTimeout()} oraz detekcja stanu \texttt{!wifiManager.getConfigPortalActive()} wykonują automatyczny restart układu (\texttt{esp\_restart()}). Zapobiega to trwałemu pozostaniu sterownika w~trybie AP po chwilowym zaniku zasilania routera w~studiu.
+\end{itemize}
+
+\subsection{Optymalizacja parsera MQTT (Zero-Allocation Parser)}
+W~procedurze \texttt{globalMqttCallback} wyeliminowano dynamiczną alokację obiektów \texttt{String} w~pętli bajt po bajcie. Nowy parser operuje bezpośrednio na surowym wskaźniku bufora \texttt{payload}:
+\begin{enumerate}[leftmargin=1.5em]
+    \item Odcina wiodące i~końcowe białe znaki (spacje, \texttt{\textbackslash t}, \texttt{\textbackslash r}, \texttt{\textbackslash n}) poprzez przesuwanie wskaźnika początkowego i~dekrementację licznika długości.
+    \item Wykonuje szybkie, bezalokacyjne porównanie pamięci bez uwzględniania wielkości liter za pomocą \texttt{strncasecmp}:
+    \begin{itemize}
+        \item Długość 2~bajty i~zawartość \texttt{"ON"} LUB długość 1~bajt i~znak \texttt{'1'} $\rightarrow$ załączenie stanu ON-AIR.
+        \item Długość 3~bajty i~zawartość \texttt{"OFF"} LUB długość 1~bajt i~znak \texttt{'0'} $\rightarrow$ wyłączenie stanu ON-AIR.
+    \end{itemize}
+\end{enumerate}
+Rozwiązanie to eliminuje fragmentację pamięci sterty (\textit{heap fragmentation}) mikrokontrolera podczas długotrwałej pracy ciągłej i~zapewnia deterministyczny czas reakcji.
+
+\subsection{Maszyna stanów wskaźnika LED bez użycia biblioteki \texttt{Ticker}}
+Zrezygnowano z~biblioteki \texttt{Ticker}, która uruchamiała callbacki w~kontekście wątku timerów programowych FreeRTOS (\texttt{esp\_timer}). Wprowadzono silnie typowane wyliczenie \texttt{enum class LedState} obsługiwane deterministycznie w~pętli \texttt{runLoop()} przy użyciu funkcji \texttt{millis()}:
+\begin{itemize}[leftmargin=1.5em]
+    \item \texttt{OFF} -- dioda wygaszona.
+    \item \texttt{SOLID\_ON} -- stan wysoki na stałe.
+    \item \texttt{FAST\_BLINK} -- przełączanie stanu co 200~ms (łączenie z~siecią Wi-Fi / brokerem MQTT).
+    \item \texttt{SLOW\_BLINK} -- przełączanie stanu co 1000~ms (aktywny portal konfiguracyjny AP).
+    \item \texttt{STROBE\_BLINK} -- przełączanie stanu co 60~ms (ostrzeżenie przed resetem fabrycznym).
+\end{itemize}
+
+\newpage
+
+% ==========================================
+% 4. ANALIZA SKRYPTÓW REAPER
+% ==========================================
+\section{Szczegółowa analiza integracji po stronie REAPER DAW}
+
+\subsection{Skrypt główny: \texttt{onAirSystem.py}}
+Skrypt działa w~środowisku Python osadzonym w~procesie programu REAPER za pośrednictwem natywnego interfejsu ReaScript API.
+
+\subsubsection{Zarządzanie połączeniem MQTT i wątkowość}
+\begin{itemize}[leftmargin=1.5em]
+    \item Skrypt inicjalizuje klienta \texttt{paho.mqtt.client} z~jawnie określoną wersją interfejsu \texttt{CallbackAPIVersion.VERSION2} (zgodność z~\texttt{paho-mqtt >= 2.0}).
+    \item Wywołanie \texttt{self.mqttClient.loop\_start()} uruchamia dedykowany wątek w~tle odpowiedzialny za obsługę gniazda TCP, wymianę pakietów kontrolnych (\textit{PINGREQ/PINGRESP}) oraz automatyczną rekoneksję w~razie utraty połączenia z~brokerem.
+    \item Parametr \texttt{keepalive} ustalono na 60~sekund, co eliminuje ryzyko zerwania sesji podczas obciążenia procesora renderowaniem projektów audio.
+\end{itemize}
+
+\subsubsection{Mechanizm synchronizacji i callback \texttt{on\_connect}}
+W~definicji klienta zaimplementowano funkcję zwrotną wywoływaną przy każdym nawiązaniu połączenia z~brokerem:
+\begin{lstlisting}[language=Python]
+def on_connect(client, userdata, flags, rc, properties=None):
+    currentState = RPR_GetToggleCommandState(1013)
+    payload = "ON" if currentState == 1 else "OFF"
+    client.publish(self.topic, payload, qos=1, retain=True)
+\end{lstlisting}
+Gwarantuje to, że w~momencie nawiązania lub wznowienia sesji z~brokerem bieżący stan transportu programu REAPER jest natychmiast synchronizowany z~kolejką MQTT.
+
+\subsubsection{Cykliczne sprawdzanie stanu transportu (\texttt{checkRecordState})}
+Funkcja \texttt{checkRecordState()} odpytuje silnik REAPERa o~stan polecenia nagrywania:
+\begin{lstlisting}[language=Python]
+currentState = RPR_GetToggleCommandState(1013)
+\end{lstlisting}
+Wartość \texttt{1013} to stały, wbudowany identyfikator akcji REAPERa (\textit{Transport: Record}). Jeżeli stan uległ zmianie w~stosunku do poprzedniego cyklu (\texttt{self.lastState}), skrypt publikuje komunikat \texttt{"ON"} lub \texttt{"OFF"}. Następnie planuje swoje kolejne wywołanie w~głównej pętli czasowej GUI REAPERa (ok. 30~Hz):
+\begin{lstlisting}[language=Python]
+RPR_defer("onAirApp.checkRecordState()")
+\end{lstlisting}
+Dzięki wykorzystaniu \texttt{RPR\_defer} zamiast pętli \texttt{while} z~funkcją \texttt{sleep()}, skrypt działa asynchronicznie i~nie blokuje głównego wątku interfejsu użytkownika ani wątku przetwarzania buforów audio (ASIO/WASAPI).
+
+\subsection{Skrypt startowy: \texttt{\_\_startup.lua}}
+Plik \texttt{\_\_startup.lua} umieszczony w~katalogu \texttt{Scripts} programu REAPER jest automatycznie wykonywany podczas każdego uruchomienia środowiska DAW:
+\begin{lstlisting}[language=Lua]
+scriptId = "_RSd98776a0c7b58c3b6f282be8231148942ddfa014"
+reaper.Main_OnCommand(reaper.NamedCommandLookup(scriptId), 0)
+\end{lstlisting}
+Wyszukuje on identyfikator zarejestrowanej akcji skryptu \texttt{onAirSystem.py} i~inicjuje jego działanie w~tle od razu po otwarciu programu.
+
+\begin{tcolorbox}[colback=boxBg,colframe=boxFrame,arc=2mm,title=\textbf{Uwaga wdrożeniowa: Identyfikator akcji \texttt{\_RS...} w REAPERze}]
+ ciąg znaków \texttt{\_RSd98776a0c7b58c3b6f282be8231148942ddfa014} jest skrótem SHA-1 generowanym przez REAPERa na podstawie ścieżki skryptu w~momencie jego ręcznego dodania do \textit{Action List} (\texttt{New action $\rightarrow$ Load ReaScript}). 
+W~przypadku przenoszenia systemu na inną maszynę lub zmiany struktury katalogów należy w~oknie \textit{Action List} kliknąć prawym przyciskiem myszy na skrypt \texttt{onAirSystem.py}, wybrać \textbf{\uv{Copy selected action command ID}} i~zaktualizować zmienną \texttt{scriptId} w~pliku \texttt{\_\_startup.lua}.
+\end{tcolorbox}
+
+\newpage
+
+% ==========================================
+% 5. ŚRODOWISKO BUDOWANIA (PLATFORMIO)
+% ==========================================
+\section{Środowisko deweloperskie i procedura kompilacji}
+
+Projekt firmware zarządzany jest za pośrednictwem narzędzia PlatformIO Core.
+
+\subsection{Konfiguracja projektu: \texttt{platformio.ini}}
+\begin{lstlisting}
+[env:esp32dev]
+platform = espressif32
+board = esp32dev
+framework = arduino
+monitor_speed = 115200
+lib_deps =
+    tzapu/WiFiManager @ ^2.0.17
+    hmueller01/PubSubClient3@^3.3.0
+\end{lstlisting}
+
+\subsection{Procedura kompilacji i wgrywania oprogramowania}
+Wszystkie operacje można wykonać z~poziomu terminala PlatformIO CLI:
+\begin{enumerate}[leftmargin=1.5em]
+    \item \textbf{Kompilacja projektu (weryfikacja kodu):}
+    \begin{lstlisting}[language=bash]
+pio run
+    \end{lstlisting}
+    \item \textbf{Kompilacja i wgranie firmware przez port USB/UART:}
+    \begin{lstlisting}[language=bash]
+pio run --target upload
+    \end{lstlisting}
+    \item \textbf{Uruchomienie monitora diagnostycznego portu szeregowego:}
+    \begin{lstlisting}[language=bash]
+pio device monitor -b 115200
+    \end{lstlisting}
+    \item \textbf{Pełne czyszczenie pamięci Flash (wraz z partycją NVS i danymi Wi-Fi):}
+    \begin{lstlisting}[language=bash]
+pio run --target erase
+    \end{lstlisting}
+\end{enumerate}
+
+\newpage
+
+% ==========================================
+% 6. PEŁNE KODY ŹRÓDŁOWE PROJEKTU
+% ==========================================
+\section{Pełne listingi kodów źródłowych}
+
+W~niniejszym rozdziale zawarto kompletne, produkcyjne kody źródłowe wszystkich modułów wchodzących w~skład systemu sygnalizacji ON-AIR.
+
+\subsection{Konfiguracja środowiska: \texttt{platformio.ini}}
+\lstinputlisting[caption={Plik konfiguracyjny środowiska PlatformIO (\texttt{platformio.ini})}]{../platformio.ini}
+
+\newpage
+\subsection{Firmware mikrokontrolera ESP32: \texttt{src/main.cpp}}
+\lstinputlisting[language=C++,caption={Główny kod źródłowy oprogramowania ESP32 (\texttt{src/main.cpp})}]{../src/main.cpp}
+
+\newpage
+\subsection{Integracja z programem REAPER: \texttt{Reaper/onAirSystem.py}}
+\lstinputlisting[language=Python,caption={Skrypt integracyjny dla REAPER DAW (\texttt{Reaper/onAirSystem.py})}]{../Reaper/onAirSystem.py}
+
+\newpage
+\subsection{Skrypt automatycznego startu: \texttt{Reaper/\_\_startup.lua}}
+\lstinputlisting[language=Lua,caption={Skrypt automatycznego uruchamiania akcji w REAPERze (\texttt{Reaper/\_\_startup.lua})}]{../Reaper/__startup.lua}
+
+\end{document}

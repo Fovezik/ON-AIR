@@ -1,0 +1,367 @@
+% !TeX program = lualatex
+\documentclass[11pt,a4paper]{article}
+
+\usepackage{fontspec}
+\usepackage[polish]{babel}
+\usepackage[a4paper,top=2.5cm,bottom=2.5cm,left=2.5cm,right=2.5cm]{geometry}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{xltabular}
+\usepackage{enumitem}
+\usepackage{tcolorbox}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{float}
+\usepackage{hyperref}
+
+% Definicja cudzysłowu dla języka polskiego
+\providecommand{\uv}[1]{,,#1''}
+
+% Kolorystyka
+\definecolor{primaryBlue}{RGB}{24, 76, 120}
+\definecolor{accentRed}{RGB}{180, 40, 40}
+\definecolor{accentGreen}{RGB}{34, 139, 34}
+\definecolor{boxBg}{RGB}{246, 248, 251}
+\definecolor{boxFrame}{RGB}{185, 200, 215}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=primaryBlue,
+    urlcolor=primaryBlue,
+    citecolor=primaryBlue
+}
+
+% Nagłówki i stopki
+\setlength{\headheight}{14pt}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{gray} System Sygnalizacji ON-AIR -- Instrukcja Użytkownika}
+\fancyhead[R]{\small\color{gray} REAPER DAW \& ESP32}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+% Formatowanie sekcji
+\titleformat{\section}
+  {\normalfont\Large\bfseries\color{primaryBlue}}{\thesection}{1em}{}
+\titleformat{\subsection}
+  {\normalfont\large\bfseries\color{primaryBlue!80!black}}{\thesubsection}{1em}{}
+
+% Inteligentne makro: sprawdza obecność pliku bezpośrednio w podfolderze photos/
+\newcommand{\photoPlaceholder}[3]{%
+  \begin{figure}[H]
+    \centering
+    \begin{tcolorbox}[
+      colback=boxBg,
+      colframe=boxFrame,
+      arc=3mm,
+      width=0.92\textwidth,
+      halign=center,
+      boxrule=1.2pt,
+      boxsep=4pt,
+      left=6pt, right=6pt, top=6pt, bottom=6pt
+    ]
+      \IfFileExists{photos/#1}{%
+        \includegraphics[width=\linewidth,height=0.38\textheight,keepaspectratio]{photos/#1}%
+      }{%
+        \vspace{0.35cm}
+        {\large\bfseries\color{primaryBlue} [ MIEJSCE NA ILUSTRACJĘ / ZRZUT EKRANU ]}\\[0.2cm]
+        {\small\bfseries Sugerowany plik:} \texttt{photos/\detokenize{#1}}\\[0.15cm]
+        \parbox{0.82\textwidth}{\centering\small \textbf{Wskazówka montażowa:} #2}
+        \vspace{0.35cm}
+      }%
+    \end{tcolorbox}
+    \caption{#3}
+    \label{fig:\detokenize{#1}}
+  \end{figure}
+}
+
+\begin{document}
+
+% ==========================================
+% STRONA TYTUŁOWA
+% ==========================================
+\begin{titlepage}
+    \centering
+    \vspace*{1.2cm}
+    
+    {\Huge\bfseries\color{primaryBlue} SYSTEM SYGNALIZACJI ON-AIR}\\[0.4cm]
+    {\LARGE\bfseries Bezprzewodowy Sterownik Tablicy Studyjnej dla REAPER DAW}\\[1.2cm]
+    
+    \begin{tcolorbox}[colback=primaryBlue!5,colframe=primaryBlue,arc=4mm,width=0.88\textwidth,halign=center]
+        \vspace{0.3cm}
+        {\Large\bfseries INSTRUKCJA UŻYTKOWNIKA}\\[0.2cm]
+        {\normalsize Montaż, konfiguracja sieciowa i~codzienna obsługa}
+        \vspace{0.3cm}
+    \end{tcolorbox}
+    
+    \vspace{1.2cm}
+    
+    \photoPlaceholder{box_front_cover.jpg}{Wykonaj ostre zdjęcie całego urządzenia z widocznym podwójnym przełącznikiem kołyskowym (czerwony/zielony), diodami LED oraz podłączonym kasetonem ON-AIR.}{Wygląd gotowego urządzenia sygnalizacyjnego ON-AIR.}
+    
+    \vfill
+    
+    \begin{tabularx}{0.88\textwidth}{l X}
+        \textbf{Wersja dokumentu:} & 1.2 (Wydanie produkcyjne) \\
+        \textbf{Platforma sprzętowa:} & ESP32 (Wi-Fi 802.11 b/g/n) \\
+        \textbf{Integracja DAW:} & Cockos REAPER v6.x / v7.x (Python ReaScript) \\
+        \textbf{Protokół sterowania:} & MQTT v3.1.1 \\
+        \textbf{Data opracowania:} & Październik 2026 \\
+    \end{tabularx}
+    
+    \vspace{0.8cm}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ==========================================
+% 1. WSTĘP I DZIAŁANIE SYSTEMU
+% ==========================================
+\section{Wstęp i zasada działania systemu}
+
+System sygnalizacji \textbf{ON-AIR} służy do automatycznego oraz ręcznego sterowania podświetleniem tablicy ostrzegawczej w~studiu nagraniowym, lektorskim lub radiowym. Jego zadaniem jest bezprzewodowe informowanie osób przebywających poza kabiną nagraniową o~trwającej rejestracji dźwięku.
+
+\subsection{Kluczowe właściwości systemu}
+\begin{itemize}[leftmargin=1.5em]
+    \item \textbf{Pełna automatyzacja z~REAPER DAW:} Włączenie nagrywania (\textit{Record}) w~programie REAPER natychmiast załącza przekaźnik i~podświetla tablicę ON-AIR. Zatrzymanie nagrywania wyłącza lampę.
+    \item \textbf{Łączność bezprzewodowa Wi-Fi:} Brak kabli sygnałowych pomiędzy reżyserką a~drzwiami studia -- komunikacja oparta jest o~sieć lokalną Wi-Fi i~protokół MQTT.
+    \item \textbf{Niezależny tryb manualny (Passthrough):} Sprzętowe wymuszenie załączenia światła niezależnie od komputera i~sieci Wi-Fi (przydatne podczas prób, wywiadów i~prac lektorskich offline).
+    \item \textbf{Pamięć stanu (MQTT Retain):} Gdy sterownik zostanie włączony w~trakcie trwającego nagrywania, od razu odczyta aktualny stan z~serwera i~włączy lampę.
+    \item \textbf{Portal konfiguracyjny WWW:} Zmiana sieci Wi-Fi oraz adresu serwera odbywa się wygodnie przez telefon lub przeglądarkę internetową.
+\end{itemize}
+
+% ==========================================
+% 2. ELEMENTY MANIPULACYJNE I WSKAŹNIKI
+% ==========================================
+\section{Przełączniki i diody sygnalizacyjne}
+
+Na obudowie sterownika umieszczono podwójny przełącznik kołyskowy, diody informacyjne LED oraz ukryty przycisk przywracania ustawień fabrycznych.
+
+\subsection{Podwójny przełącznik kołyskowy}
+Urządzenie wyposażone jest w~podwójny przełącznik kołyskowy:
+\begin{enumerate}[leftmargin=1.5em]
+    \item \textbf{Klawisz czerwony -- Zasilanie główne (\texttt{Power ON/OFF}):}
+    \begin{itemize}
+        \item \textbf{Pozycja I (ON):} Włącza zasilanie sterownika i~modułu wykonawczego.
+        \item \textbf{Pozycja O (OFF):} Całkowite wyłączenie urządzenia.
+    \end{itemize}
+    
+    \item \textbf{Klawisz zielony -- Tryb ręczny (\texttt{Passthrough / Manual Override}):}
+    \begin{itemize}
+        \item \textbf{Pozycja I (Załączony):} Wymusza stałe świecenie tablicy ON-AIR. W~tym trybie sterownik \textbf{całkowicie wyłącza moduł Wi-Fi} i~nie nasłuchuje poleceń z~komputera. Dioda statusu sieci gaśnie, a~dioda aktywności świeci ciągle. Pozwala to na ręczne włączenie lampy bez uruchamiania komputera.
+        \item \textbf{Pozycja O (Wyłączony -- Tryb AUTO):} Urządzenie pracuje w~trybie automatycznym. Łączy się z~Wi-Fi oraz serwerem MQTT, reagując na uruchomienie nagrywania w~programie REAPER.
+    \end{itemize}
+\end{enumerate}
+
+\photoPlaceholder{switch_panel.jpg}{Zrób zbliżenie na podwójny przełącznik kołyskowy z czytelnym oznaczeniem klawisza czerwonego (Power) oraz zielonego (Passthrough).}{Podwójny przełącznik kołyskowy zasilania i trybu ręcznego.}
+
+\subsection{Diody sygnalizacyjne LED}
+Na obudowie znajdują się trzy wskaźniki świetlne:
+\begin{itemize}[leftmargin=1.5em]
+    \item \textbf{Dioda zasilania (czerwona):} Świeci zawsze wtedy, gdy włączone jest zasilanie sterownika (czerwony klawisz w~pozycji ON).
+    \item \textbf{Dioda Statusu Sieci (niebieska):} Informuje o~stanie połączenia z~siecią Wi-Fi oraz serwerem komunikacyjnym MQTT.
+    \item \textbf{Dioda Aktywności ON-AIR (zielona):} Świeci zawsze wtedy, gdy załączone jest zasilanie zewnętrznej tablicy świetlnej ON-AIR.
+\end{itemize}
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.35}
+\caption{Zachowanie Diody Statusu Sieci}
+\label{tab:status_led}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash\bfseries}p{3.8cm} >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}p{4.5cm}}
+\toprule
+\textbf{Sygnał świetlny} & \textbf{Znaczenie / Stan urządzenia} & \textbf{Co należy zrobić?} \\
+\midrule
+Wyłączona (OFF) & Urządzenie jest wyłączone LUB włączono zielony klawisz trybu ręcznego. & Brak. W~trybie ręcznym Wi-Fi jest celowo wyłączone. \\
+\addlinespace[3pt]
+Szybkie miganie (5 razy na sekundę) & Trwa łączenie z~siecią Wi-Fi lub serwerem MQTT. & Zaczekaj kilka sekund na nawiązanie połączenia. \\
+\addlinespace[3pt]
+Powolne miganie (raz na sekundę) & Tryb konfiguracji (uruchomiona własna sieć \texttt{OnAir\_Setup}). & Połącz się ze sterownikiem przez Wi-Fi, aby go skonfigurować. \\
+\addlinespace[3pt]
+Błyskawiczny stroboskop & Ostrzeżenie! Przycisk Reset jest wciśnięty dłużej niż 3~sekundy. & Puść przycisk, jeśli nie chcesz skasować ustawień Wi-Fi! \\
+\addlinespace[3pt]
+Światło ciągłe (SOLID ON) & Połączono z~Wi-Fi i~serwerem MQTT. System działa prawidłowo. & Urządzenie gotowe do pracy z~programem REAPER. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Przycisk ustawień fabrycznych (Factory Reset)}
+Przycisk umieszczono w~zagłębieniu obudowy, aby uniknąć jego przypadkowego wciśnięcia:
+\begin{itemize}[leftmargin=1.5em]
+    \item \textbf{Krótkie wciśnięcie (poniżej 3~s):} Ignorowane (zabezpieczenie przed przypadkowym dotknięciem).
+    \item \textbf{Przytrzymanie przez 3~sekundy:} Dioda statusu zaczyna bardzo szybko mrugać, ostrzegając o~zbliżającym się resecie.
+    \item \textbf{Przytrzymanie przez 5~sekund:} Całkowite skasowanie zapisanej sieci Wi-Fi oraz ustawień serwera MQTT. Urządzenie uruchomi się ponownie w~trybie konfiguracji początkowej.
+\end{itemize}
+\newpage
+
+% ==========================================
+% 3. INSTALACJA W REAPER DAW
+% ==========================================
+\section{Instalacja i konfiguracja w programie REAPER}
+
+Aby program REAPER automatycznie sterował lampą, należy jednorazowo wgrać do niego skrypt integracyjny.
+
+\subsection{Wymagania wstępne}
+\begin{enumerate}[leftmargin=1.5em]
+    \item Zainstalowany program REAPER (wersja 6.x lub 7.x) oraz środowisko Python w~systemie operacyjnym.
+    \item Włączona obsługa skryptów Python w~REAPERze:
+    \begin{itemize}
+        \item Otwórz w~górnym menu: \texttt{Options $\rightarrow$ Preferences $\rightarrow$ Plug-ins $\rightarrow$ ReaScript}.
+        \item Zaznacz opcję \textbf{\uv{Enable Python for ReaScript}}.
+        \item Upewnij się, że w~oknie widnieje zielony komunikat potwierdzający wykrycie biblioteki (np. \texttt{python311.dll is installed and working}).
+    \end{itemize}
+    \item Zainstalowana biblioteka komunikacyjna \texttt{paho-mqtt} (w~wierszu poleceń systemu wpisz: \texttt{pip install paho-mqtt}).
+\end{enumerate}
+
+\photoPlaceholder{reaper_python_prefs.jpg}{Zrzut ekranu okna preferencji REAPER: Options -> Preferences -> Plug-ins -> ReaScript z widoczną włączoną obsługą Pythona.}{Weryfikacja obsługi języka Python w programie REAPER.}
+
+\subsection{Kopiowanie plików skryptu krok po kroku}
+\begin{enumerate}[leftmargin=1.5em]
+    \item W~programie REAPER wybierz z~górnego menu:
+    \begin{center}
+        \textbf{\texttt{Options $\rightarrow$ Show REAPER resource path in explorer/finder...}}
+    \end{center}
+    Otworzy się folder z~plikami konfiguracyjnymi programu.
+    
+    \item Otwórz podfolder o~nazwie \textbf{\texttt{Scripts}}.
+    \item Skopiuj plik \textbf{\texttt{onAirSystem.py}} oraz plik autostartu \textbf{\texttt{\_\_startup.lua}} i~wklej je bezpośrednio do folderu \texttt{Scripts}.
+    \item \textbf{Pierwsze uruchomienie i~rejestracja skryptu:}
+    \begin{itemize}
+        \item Wciśnij klawisz \texttt{?} na klawiaturze w~REAPERze (otworzy się okno \textit{Action List}).
+        \item Kliknij przycisk \textbf{\texttt{New action... $\rightarrow$ Load ReaScript...}}, wybierz skopiowany plik \texttt{onAirSystem.py} i~kliknij \textbf{Run}.
+        \item Dzięki obecności pliku \texttt{\_\_startup.lua} przy każdym kolejnym włączeniu REAPERa system ON-AIR będzie uruchamiał się całkowicie automatycznie w~tle.
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Konfiguracja połączenia w REAPERze}
+Przy pierwszym uruchomieniu skryptu na ekranie pojawi się małe okno konfiguracji:
+\begin{itemize}[leftmargin=1.5em]
+    \item \textbf{Broker IP:} Adres IP serwera MQTT w~sieci lokalnej (np. \texttt{192.168.0.100}).
+    \item \textbf{Port:} Port komunikacyjny (domyślnie: \textbf{\texttt{1883}}).
+    \item \textbf{Topic:} Kanał komunikacji (domyślnie: \textbf{\texttt{studio/onair}}).
+\end{itemize}
+
+\photoPlaceholder{reaper_dialog_mqtt.jpg}{Zrzut ekranu okna dialogowego "OnAir MQTT Setup" w programie REAPER z wpisanym adresem IP brokera, portem 1883 i tematem studio/onair.}{Okno dialogowe konfiguracji połączenia w REAPERze.}
+
+Po zatwierdzeniu dane zostaną zapamiętane w~pliku \texttt{onAirConfig.json} w~folderze \texttt{Scripts} i~okno nie będzie pojawiać się ponownie. 
+
+\begin{tcolorbox}[colback=boxBg,colframe=boxFrame,arc=2mm]
+\small \textbf{Wskazówka:} Jeśli w~przyszłości zmieni się adres IP serwera w~studiu, wystarczy usunąć plik \texttt{onAirConfig.json} z~folderu \texttt{Scripts}. Przy kolejnym uruchomieniu REAPER ponownie zapyta o~nowy adres IP.
+\end{tcolorbox}
+
+\newpage
+
+% ==========================================
+% 4. KONFIGURACJA SIECIOWA URZĄDZENIA (WIFI)
+% ==========================================
+\section{Konfiguracja Wi-Fi sterownika}
+
+Nowe lub zresetowane urządzenie nie zna hasła do sieci Wi-Fi w~studiu, dlatego po włączeniu tworzy własną, tymczasową sieć konfiguracyjną.
+
+\subsection{Procedura połączenia krok po kroku}
+\begin{enumerate}[leftmargin=1.5em]
+    \item \textbf{Włączenie urządzenia:} Upewnij się, że zielony klawisz jest wyłączony (\textbf{O}), a~następnie włącz zasilanie czerwonym klawiszem (\textbf{I}).
+    \item \textbf{Sygnalizacja:} Dioda statusu sieci zacznie \textbf{powoli mrugać} (co 1~sekundę). Oznacza to, że sterownik czeka na konfigurację.
+    \item \textbf{Połączenie ze sterownikiem:}
+    \begin{itemize}
+        \item Otwórz ustawienia Wi-Fi w~swoim smartfonie lub laptopie.
+        \item Wyszukaj i~połącz się z~otwartą siecią o~nazwie: \textbf{\texttt{OnAir\_Setup}}.
+    \end{itemize}
+\end{enumerate}
+
+\begin{tcolorbox}[colback=accentGreen!5,colframe=accentGreen,arc=2mm,title=\textbf{Automatyczne wstrzymanie limitu czasu}]
+Jeśli po utracie połączenia z~routerem nikt nie połączy się z~siecią \texttt{OnAir\_Setup} przez 2~minuty, sterownik samoczynnie się zrestartuje i~spróbuje ponownie połączyć ze starą siecią studyjną. 
+\textbf{W~momencie, gdy połączysz się z~nim telefonem, odliczanie zostaje zatrzymane} -- masz nieograniczony czas na spokojne wpisanie ustawień.
+\end{tcolorbox}
+
+\begin{enumerate}[leftmargin=1.5em,resume]
+    \item \textbf{Otwarcie panelu w~przeglądarce:}
+    \begin{itemize}
+        \item Panel powinien otworzyć się automatycznie po połączeniu z~siecią. Jeśli tak się nie stanie, otwórz przeglądarkę internetową i~wpisz w~pasku adresu:
+        \begin{center}
+            \textbf{\url{http://192.168.4.1}}
+        \end{center}
+    \end{itemize}
+    
+    \item \textbf{Wprowadzenie ustawień:}
+    \begin{itemize}
+        \item Kliknij przycisk \textbf{\uv{Configure WiFi}}.
+        \item Z~listy wykrytych sieci wybierz studyjną sieć Wi-Fi i~wpisz do niej hasło.
+        \item Poniżej uzupełnij dane serwera (identyczne jak wcześniej w~programie REAPER):
+        \begin{itemize}
+            \item \textbf{MQTT Broker IP:} Adres IP serwera MQTT.
+            \item \textbf{MQTT Broker Port:} \texttt{1883} (domyślnie).
+            \item \textbf{MQTT Topic:} \texttt{studio/onair} (domyślnie).
+        \end{itemize}
+        \item Kliknij przycisk \textbf{\uv{Save}} na dole ekranu.
+    \end{itemize}
+\end{enumerate}
+
+\photoPlaceholder{wifimanager_portal.jpg}{Zrzut ekranu interfejsu konfiguracyjnego WiFiManager (strona 192.168.4.1) z widocznymi polami sieci Wi-Fi oraz polami MQTT Broker IP, Port i Topic.}{Strona konfiguracyjna sterownika w przeglądarce WWW.}
+
+\subsection{Zakończenie konfiguracji}
+Po kliknięciu \uv{Save} sterownik zapisze dane i~uruchomi się ponownie:
+\begin{enumerate}[leftmargin=1.5em]
+    \item Dioda statusu zamruga szybko (łączenie z~routerem i~serwerem).
+    \item Po kilku sekundach dioda zacznie \textbf{świecić światłem ciągłym}.
+    \item Urządzenie jest skonfigurowane. Pamięć jest nieulotna -- po wyłączeniu z~prądu sterownik zachowa wszystkie ustawienia.
+\end{enumerate}
+
+\newpage
+
+% ==========================================
+% 5. CODZIENNA EKSPLOATACJA
+% ==========================================
+\section{Codzienna obsługa w studiu}
+
+\subsection{Praca z programem REAPER (Tryb automatyczny)}
+\begin{enumerate}[leftmargin=1.5em]
+    \item Włącz zasilanie sterownika ON-AIR czerwonym klawiszem (zielony klawisz musi być w~pozycji wyłączonej \textbf{O}).
+    \item Odczekaj kilka sekund, aż dioda statusu sieci zaświeci światłem ciągłym.
+    \item Uruchom program REAPER na komputerze w~reżyserce.
+    \item Włączenie nagrywania w~REAPERze (skrót \texttt{Ctrl + R} lub przycisk \textit{Record}) natychmiast zaświeci tablicę ON-AIR przed studiem oraz zieloną diodę na sterowniku.
+    \item Zatrzymanie nagrywania (\texttt{Spacja}) lub zamknięcie programu REAPER automatycznie wyłączy tablicę ostrzegawczą.
+\end{enumerate}
+
+\subsection{Praca bez komputera / Próba (Tryb ręczny)}
+Gdy w~studiu odbywają się próby, wywiady lub nagrania na zewnętrzny rejestrator bez udziału programu REAPER:
+\begin{enumerate}[leftmargin=1.5em]
+    \item Przestaw zielony klawisz w~pozycję \textbf{I (Załączony)}.
+    \item Lampa ON-AIR oraz zielona dioda aktywności zaświecą się na stałe.
+    \item Po zakończeniu pracy przestaw zielony klawisz z~powrotem w~pozycję \textbf{O (Wyłączony)}. Sterownik w~ciągu kilku sekund samoczynnie powróci do trybu bezprzewodowego Wi-Fi.
+\end{enumerate}
+
+% ==========================================
+% 6. ROZWIĄZYWANIE PROBLEMÓW (FAQ)
+% ==========================================
+\section{Rozwiązywanie problemów (FAQ)}
+
+\renewcommand{\arraystretch}{1.4}
+\begin{xltabular}{\textwidth}{>{\raggedright\arraybackslash\bfseries}p{3.8cm} >{\raggedright\arraybackslash}p{4.8cm} >{\raggedright\arraybackslash}X}
+\caption{Najczęstsze problemy i sposoby ich rozwiązania} \label{tab:troubleshooting} \\
+\toprule
+\textbf{Objaw} & \textbf{Prawdopodobna przyczyna} & \textbf{Sposób rozwiązania} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Objaw} & \textbf{Prawdopodobna przyczyna} & \textbf{Sposób rozwiązania} \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+Dioda statusu bez przerwy szybko miga. & Brak zasięgu Wi-Fi lub serwer MQTT w~sieci studyjnej jest wyłączony. & Sprawdź, czy router Wi-Fi działa poprawnie oraz czy serwer z~brokerem MQTT jest uruchomiony. \\
+\addlinespace[4pt]
+Dioda statusu powoli mruga (raz na sekundę). & Urządzenie przeszło w~tryb konfiguracji (np. po resecie lub utracie sieci). & Połącz się telefonem z~siecią \texttt{OnAir\_Setup} i~skonfiguruj połączenie (Rozdział 4) lub uruchom urządzenie ponownie. \\
+\addlinespace[4pt]
+Lampa ON-AIR nie reaguje na nagrywanie w~REAPERze (mimo że dioda statusu świeci ciągle). & 1. Niezgodny kanał (\textit{Topic}) pomiędzy REAPERem a~sterownikiem.\newline 2. Skrypt w~REAPERze nie działa w~tle. & 1. Sprawdź w~pliku \texttt{onAirConfig.json}, czy wpisany temat zgadza się z~ustawieniem sterownika (domyślnie \texttt{studio/onair}).\newline 2. Uruchom skrypt ręcznie z~\textit{Action List} (klawisz \texttt{?}). \\
+\addlinespace[4pt]
+Lampa ON-AIR świeci cały czas, mimo że REAPER nie nagrywa. & Włączony jest zielony klawisz trybu ręcznego (\textit{Passthrough}). & Przestaw zielony przełącznik kołyskowy w~pozycję wyłączoną (\textbf{O}). \\
+\addlinespace[4pt]
+W~studiu wymieniono router lub zmieniono hasło do Wi-Fi. & Sterownik próbuje łączyć się ze starą, nieistniejącą siecią. & Przytrzymaj ukryty przycisk Reset przez 5~sekund, aż dioda zamruga stroboskopowo i~zgaśnie. Następnie skonfiguruj nową sieć (Rozdział 4). \\
+\end{xltabular}
+
+\end{document}
